@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DupliGone - Photo Library Cleaner</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-images"></i>
+                <h1>DupliGone</h1>
+            </div>
+            <p class="tagline">AI-Powered Photo Library Cleaner</p>
+        </header>
+
+        <!-- Main Upload Section -->
+        <main class="main-content">
+            <div class="upload-section" id="uploadSection">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <h2>Upload Your Photos</h2>
+                    <p>Drop photos here or click to browse</p>
+                    <p class="upload-info">Supports JPG, PNG, GIF, WebP • Max 50MB per file • Up to 100 files</p>
+                    
+                    <input type="file" id="fileInput" multiple accept="image/*" hidden>
+                    <button class="upload-btn" id="uploadBtn">
+                        <i class="fas fa-plus"></i>
+                        Choose Photos
+                    </button>
+                </div>
+
+                <!-- File Preview Section -->
+                <div class="file-preview" id="filePreview" style="display: none;">
+                    <h3>Selected Photos</h3>
+                    <div class="file-list" id="fileList"></div>
+                    <div class="upload-actions">
+                        <button class="btn btn-secondary" id="clearFiles">
+                            <i class="fas fa-trash"></i>
+                            Clear All
+                        </button>
+                        <button class="btn btn-primary" id="startUpload">
+                            <i class="fas fa-magic"></i>
+                            Start Processing
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Processing Section -->
+            <div class="processing-section" id="processingSection" style="display: none;">
+                <div class="processing-card">
+                    <div class="processing-icon">
+                        <i class="fas fa-cog fa-spin"></i>
+                    </div>
+                    <h2>Processing Your Photos</h2>
+                    <p id="processingStatus">Uploading files...</p>
+                    
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span id="progressPercent">0%</span>
+                        <span id="progressDetail">Starting...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <div class="results-header">
+                    <h2>Processing Complete!</h2>
+                    <div class="results-stats">
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalImages">0</div>
+                            <div class="stat-label">Total Images</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="clustersFound">0</div>
+                            <div class="stat-label">Duplicate Groups</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="spaceSaved">0 MB</div>
+                            <div class="stat-label">Space to Save</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="results-actions">
+                    <button class="btn btn-primary" id="viewResults">
+                        <i class="fas fa-eye"></i>
+                        View Results
+                    </button>
+                    <button class="btn btn-secondary" id="startOver">
+                        <i class="fas fa-redo"></i>
+                        Process More Photos
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2025 DupliGone. Built with ❤️ for photo organization.</p>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Please wait...</p>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
