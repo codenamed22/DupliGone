@@ -13,7 +13,7 @@ import asyncio
 
 # Import our services and models
 from config.settings import settings
-from services.s3_service import s3_service
+from services.azure_blob_service import azure_blob_service as blob_service
 from services.mongo_service import mongo_service
 from services.queue_service import queue_service
 from models.session import Session, SessionStatus
@@ -115,7 +115,7 @@ async def delete_session(session_id: str):
         # Delete S3 objects
         for image in images:
             try:
-                s3_service.delete_object(image['s3_path'])
+                blob_service.delete_object(image['blob_name'])
             except Exception as e:
                 print(f"Warning: Failed to delete S3 object {image['s3_path']}: {e}")
         
@@ -171,28 +171,29 @@ async def upload_images(
             with open(file_path, "wb") as buffer:
                 buffer.write(file_content)
             
-            # Upload to S3
-            s3_path = f"{session_id}/{file.filename}"
-            s3_url = s3_service.upload_file(file_path, s3_path)
+            # changed for azure accordingly
+            blob_name = f"{session_id}/{file.filename}"
+            blob_url = blob_service.upload_file(file_path, blob_name)
             
-            # Save image metadata to database
+            # Save image metadata to database 
+            #changed for azure blob fields
             image_data = {
-                "session_id": session_id,
-                "filename": file.filename,
-                "s3_path": s3_path,
-                "s3_url": s3_url,
-                "file_size": len(file_content),
-                "content_type": file.content_type,
-                "upload_timestamp": datetime.utcnow(),
-                "delete_recommended": False,
-                "processed": False
-            }
+            "session_id": session_id,
+            "filename": file.filename,
+            "blob_name": blob_name,  # Changed from s3_path
+            "blob_url": blob_url,    # Changed from s3_url
+            "file_size": len(file_content),
+            "content_type": file.content_type,
+            "upload_timestamp": datetime.utcnow(),
+            "delete_recommended": False,
+            "processed": False
+         }
             
             image_id = mongo_service.save_image(image_data)
             uploaded_files.append({
                 "image_id": image_id,
                 "filename": file.filename,
-                "s3_url": s3_url,
+                "blob_url": blob_url,              #changed for azure blob url
                 "file_size": len(file_content)
             })
             
@@ -305,7 +306,7 @@ async def get_processing_results(session_id: str):
             unclustered_images.append({
                 "image_id": img['_id'],
                 "filename": img['filename'],
-                "s3_url": img.get('s3_url', ''),
+                "blob_url": best_image.get('blob_url', '')      #changed for azure
                 "quality_score": img.get('quality_overall', 0),
                 "file_size": img.get('file_size', 0)
             })
@@ -398,8 +399,8 @@ async def confirm_deletions(session_id: str):
     
     for image in images_to_delete:
         try:
-            # Delete from S3
-            s3_service.delete_object(image['s3_path'])
+            # changed for azure
+            blob_service.delete_object(image['blob_name'])
             
             # Mark as deleted in database
             mongo_service.update_image(image['_id'], {
