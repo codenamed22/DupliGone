@@ -7,11 +7,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings(BaseSettings):
-    # AWS Configuration
-    aws_access_key_id: str = os.getenv("AWS_ACCESS_KEY_ID", "")
-    aws_secret_access_key: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
-    aws_region: str = os.getenv("AWS_REGION", "us-east-1")
-    s3_bucket_name: str = os.getenv("S3_BUCKET_NAME", "dupligone-photos")
+    # ADDED azure removed s3
+    azure_storage_connection_string: str = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
+    azure_container_name: str = os.getenv("AZURE_CONTAINER_NAME", "photos")
+
     
     # MongoDB Configuration
     mongo_uri: str = os.getenv("MONGO_URI", "mongodb://localhost:27017")
