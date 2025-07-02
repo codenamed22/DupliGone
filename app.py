@@ -306,7 +306,7 @@ async def get_processing_results(session_id: str):
             unclustered_images.append({
                 "image_id": img['_id'],
                 "filename": img['filename'],
-                "blob_url": best_image.get('blob_url', '')      #changed for azure
+                "blob_url": best_image.get('blob_url', ''),      #changed for azure
                 "quality_score": img.get('quality_overall', 0),
                 "file_size": img.get('file_size', 0)
             })
