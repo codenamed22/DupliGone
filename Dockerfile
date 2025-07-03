@@ -19,12 +19,14 @@ RUN apt-get update && apt-get install -y \
 # Set work directory
 WORKDIR /app
 
+# CRITICAL: Install latest setuptools that supports Python 3.12
+RUN pip install --no-cache-dir --upgrade pip setuptools==69.5.1 wheel
+
 # Copy requirements first for better caching
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
