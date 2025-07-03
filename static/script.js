@@ -333,36 +333,52 @@ class DupliGoneApp {
     }
 
     /**
-     * Check processing results
+     * Check processing results - UPDATED WITH FIX
      */
     async checkResults() {
         if (!this.token) return;
 
-        const response = await fetch(`${this.config.apiBaseUrl}/getResult`, {
-            headers: {
-                'Authorization': `Bearer ${this.token}`,
-                'Content-Type': 'application/json'
+        try {
+            const response = await fetch(`${this.config.apiBaseUrl}/getResult`, {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to get results: ${response.status}`);
             }
-        });
 
-        if (!response.ok) {
-            throw new Error(`Failed to get results: ${response.status}`);
-        }
+            const result = await response.json();
+            console.log('📊 Polling result:', result); // Add debug logging
+            
+            this.updateProcessingStatus(result);
 
-        const result = await response.json();
-        this.updateProcessingStatus(result);
-
-        if (result.status === 'completed') {
+            // **FIX: Handle all possible statuses**
+            if (result.status === 'completed') {
+                console.log('✅ Processing completed, showing results');
+                this.stopPolling();
+                this.showResults(result);
+            } else if (result.status === 'failed') {
+                console.log('❌ Processing failed');
+                this.stopPolling();
+                this.showError('Processing failed. Please try again.');
+            } else {
+                // **NEW: Continue polling for other statuses**
+                console.log(`🔄 Status: ${result.status}, continuing to poll...`);
+                // Keep polling for: uploading, uploaded, processing, clustering
+            }
+            
+        } catch (error) {
+            console.error('❌ Polling error:', error);
             this.stopPolling();
-            this.showResults(result);
-        } else if (result.status === 'failed') {
-            this.stopPolling();
-            this.showError('Processing failed. Please try again.');
+            this.showError('Failed to get processing status. Please refresh the page.', error.message);
         }
     }
 
     /**
-     * Update processing status display
+     * Update processing status display - UPDATED WITH FIX
      */
     updateProcessingStatus(result) {
         this.updateProcessingStats(result.total_images, result.processed_images);
@@ -376,13 +392,18 @@ class DupliGoneApp {
         };
 
         const processingStatus = document.getElementById('processing-status');
-        processingStatus.textContent = statusMessages[result.status] || 'Processing...';
+        processingStatus.textContent = statusMessages[result.status] || `Processing... (${result.status})`;
 
         // Update clusters count if available
-        if (result.clusters) {
+        if (result.clusters && result.clusters.length > 0) {
             const clustersCount = document.getElementById('clusters-count');
-            clustersCount.textContent = result.clusters.length;
+            if (clustersCount) {
+                clustersCount.textContent = result.clusters.length;
+            }
         }
+        
+        // **NEW: Add debug info**
+        console.log(`📊 Status: ${result.status}, Processed: ${result.processed_images}/${result.total_images}`);
     }
 
     /**

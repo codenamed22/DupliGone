@@ -34,7 +34,9 @@ python-multipart==0.0.6
 python-dotenv==1.0.0
 aiofiles==23.2.1
 httpx==0.25.2
+aiohttp==3.9.1
 
 # Development
 pytest==7.4.3
 pytest-asyncio==0.21.1
+

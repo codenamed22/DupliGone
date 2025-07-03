@@ -11,6 +11,19 @@ import aiofiles
 from typing import List, BinaryIO
 import uuid
 
+from urllib.parse import urlparse
+
+def extract_blob_name(blob_url: str, container_name: str) -> str:
+    """
+    Extracts the blob name (including session_id folder) from the full Azure blob URL.
+    """
+    parsed = urlparse(blob_url)
+    prefix = f"/{container_name}/"
+    if parsed.path.startswith(prefix):
+        return parsed.path[len(prefix):]
+    else:
+        return parsed.path.lstrip("/")
+
 class AzureStorageService:
     def __init__(self):
         # Get Azure connection details from environment variables
@@ -44,13 +57,7 @@ class AzureStorageService:
         return blob_client.url
         
     async def download_file(self, blob_url: str) -> bytes:
-        """
-        Download a file from Azure Blob Storage
-        Used by image processing service to get images for analysis
-        """
-        # Extract blob name from the full URL
-        blob_name = blob_url.split('/')[-1]
-        
+        blob_name = extract_blob_name(blob_url, self.container_name)
         async with AsyncBlobServiceClient.from_connection_string(
             self.connection_string
         ) as blob_service_client:
@@ -58,18 +65,11 @@ class AzureStorageService:
                 container=self.container_name, 
                 blob=blob_name
             )
-            # Download the blob content as bytes
             stream = await blob_client.download_blob()
             return await stream.readall()
             
     async def delete_file(self, blob_url: str):
-        """
-        Delete a file from Azure Blob Storage
-        Used when user confirms deletion of recommended images
-        """
-        # Extract blob name from URL
-        blob_name = blob_url.split('/')[-1]
-        
+        blob_name = extract_blob_name(blob_url, self.container_name)
         async with AsyncBlobServiceClient.from_connection_string(
             self.connection_string
         ) as blob_service_client:
@@ -77,7 +77,6 @@ class AzureStorageService:
                 container=self.container_name, 
                 blob=blob_name
             )
-            # Delete the blob
             await blob_client.delete_blob()
             
     async def list_session_files(self, session_id: str) -> List[str]:

@@ -16,7 +16,7 @@ import os
 import logging
 
 # Import our custom modules
-from models.database import db_manager, SessionModel
+from models.database import db_manager, SessionModel, ImageModel
 from services.azure_storage import azure_storage
 from tasks.image_tasks import process_images_task
 
@@ -105,7 +105,6 @@ def is_valid_image(file: UploadFile) -> bool:
 async def upload_images(files: List[UploadFile] = File(...)):
     """
     Upload multiple images and return processing token
-    Flow: collect from user -> upload to Azure -> start background processing -> return token
     """
     try:
         logger.info(f"Received upload request with {len(files)} files")
@@ -124,6 +123,9 @@ async def upload_images(files: List[UploadFile] = File(...)):
         
         logger.info(f"Created session {session_id} with token {token}")
         
+        # **CRITICAL FIX: Connect to database**
+        await db_manager.connect()
+        
         # Create session in database
         session_data = SessionModel(
             session_id=session_id,
@@ -135,8 +137,8 @@ async def upload_images(files: List[UploadFile] = File(...)):
         )
         await db_manager.create_session(session_data)
         
-        # Upload files to Azure Blob Storage
-        uploaded_urls = []
+        # Upload files to Azure AND store in database
+        uploaded_count = 0
         for i, file in enumerate(valid_files):
             try:
                 logger.info(f"Uploading file {i+1}/{len(valid_files)}: {file.filename}")
@@ -144,30 +146,45 @@ async def upload_images(files: List[UploadFile] = File(...)):
                 blob_url = await azure_storage.upload_file(
                     content, file.filename or f"image_{i}.jpg", session_id
                 )
-                uploaded_urls.append(blob_url)
-                logger.info(f"Successfully uploaded to: {blob_url}")
+                
+                # **CRITICAL FIX: Store image in database immediately**
+                image_data = ImageModel(
+                    image_id=str(uuid.uuid4()),
+                    session_id=session_id,
+                    original_filename=file.filename or f"image_{i}.jpg",
+                    blob_url=blob_url,  # Exact URL from Azure
+                    hash_value="",  # Will be calculated by Celery
+                    quality_score=0.0,  # Will be calculated by Celery
+                    delete_recommended=False,
+                    metadata={}
+                )
+                await db_manager.save_image(image_data)
+                uploaded_count += 1
+                
+                logger.info(f"Successfully uploaded and stored: {blob_url}")
+                
             except Exception as e:
                 logger.error(f"Failed to upload {file.filename}: {str(e)}")
                 # Continue with other files
         
-        if not uploaded_urls:
+        if uploaded_count == 0:
             raise HTTPException(status_code=500, detail="Failed to upload any files")
         
-        # Update session with uploaded count
+        # Update session status
         await db_manager.update_session(session_id, {
             "status": "uploaded",
-            "total_images": len(uploaded_urls)
+            "total_images": uploaded_count
         })
         
-        # Start background processing (hashing + quality assessment + clustering)
-        logger.info(f"Starting background processing for {len(uploaded_urls)} images")
-        process_images_task.delay(session_id, uploaded_urls)
+        # **CRITICAL FIX: Only pass session_id to Celery task**
+        logger.info(f"Starting background processing for {uploaded_count} images")
+        process_images_task.delay(session_id)  # Remove uploaded_urls parameter
         
         return UploadResponse(
             token=token,
             session_id=session_id,
-            message=f"Successfully uploaded {len(uploaded_urls)} images. Processing started.",
-            total_images=len(uploaded_urls)
+            message=f"Successfully uploaded {uploaded_count} images. Processing started.",
+            total_images=uploaded_count
         )
         
     except HTTPException:
@@ -175,6 +192,10 @@ async def upload_images(files: List[UploadFile] = File(...)):
     except Exception as e:
         logger.error(f"Upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+    finally:
+        # **CRITICAL FIX: Always disconnect from database**
+        await db_manager.disconnect()
+
 
 @app.get("/getResult", response_model=ResultResponse)
 async def get_results(authorization: str = Header(...)):
@@ -325,3 +346,56 @@ if __name__ == "__main__":
         reload=True,
         log_level="info"
     )
+
+
+'''
+What this FastAPI REST API does:
+
+
+Core Endpoints:
+
+POST /upload: Accepts multiple files, uploads to Azure, returns token
+GET /getResult: Uses Bearer token to return processing status and results
+POST /delete: Deletes selected images from both Azure and database
+
+
+
+
+Token-Based Flow:
+
+Upload → Generate session_id + token → Store in database → Return token to client
+Processing → Background tasks update session status in database
+Results → Client uses token to get current status and cluster results
+Deletion → Client uses token to delete recommended images
+
+
+
+
+Session Management:
+
+Public key system: Each session gets unique token for API access
+Status tracking: "uploading" → "uploaded" → "processing" → "clustering" → "completed"
+Database integration: All session data stored in MongoDB
+
+
+
+
+Mobile-First Features:
+
+CORS enabled: Supports cross-origin requests for mobile apps
+File validation: Checks image types before processing
+Progress tracking: Returns processing progress for UI updates
+Error handling: Robust error responses with proper HTTP codes
+
+
+
+
+API Response Format:
+
+All responses in JSON format as requested
+Cluster information includes delete_recommended flags
+Recommendations include space savings estimates
+
+
+
+'''

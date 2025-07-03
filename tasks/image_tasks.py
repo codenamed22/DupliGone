@@ -15,29 +15,29 @@ from typing import List, Dict, Any
 import concurrent.futures
 import threading
 import logging
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 @celery_app.task(bind=True, name="tasks.image_tasks.process_images_task")
-def process_images_task(self, session_id: str, image_urls: List[str]):
+def process_images_task(self, session_id: str):  # Remove image_urls parameter
     """
-    Process images with multithreading for hashing and quality assessment
-    Two threads work simultaneously: one for hashing, one for quality assessment
+    Process images by querying database for session images
     """
     
-    async def process_single_image(image_url: str, filename: str) -> Dict[str, Any]:
+    async def process_single_image(image: ImageModel) -> Dict[str, Any]:
         """Process a single image with both hashing and quality assessment"""
         try:
-            logger.info(f"Processing image: {filename}")
+            logger.info(f"Processing image: {image.original_filename}")
+            logger.info(f"Blob URL: {image.blob_url}")
             
             # Download image from Azure Blob
-            image_bytes = await azure_storage.download_file(image_url)
+            image_bytes = await azure_storage.download_file(image.blob_url)
             
             # Use ThreadPoolExecutor for CPU-intensive image analysis
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                # Submit both tasks simultaneously
                 hash_future = executor.submit(
                     image_processor.calculate_perceptual_hashes, 
                     image_bytes
@@ -47,91 +47,96 @@ def process_images_task(self, session_id: str, image_urls: List[str]):
                     image_bytes
                 )
                 
-                # Wait for both to complete
                 hashes = hash_future.result()
                 metrics = quality_future.result()
             
             # Calculate overall quality score
             quality_score = image_processor.calculate_overall_quality(metrics)
-            
-            # Determine if image should be recommended for deletion
             delete_recommended = quality_score < float(os.getenv("QUALITY_THRESHOLD", "0.5"))
             
+            # Update the existing image record
+            await db_manager.db.images.update_one(
+                {"image_id": image.image_id},
+                {"$set": {
+                    "hash_value": hashes["combined"],
+                    "quality_score": quality_score,
+                    "delete_recommended": delete_recommended,
+                    "metadata": {
+                        "phash": hashes["phash"],
+                        "dhash": hashes["dhash"],
+                        "sharpness": metrics["sharpness"],
+                        "brightness": metrics["brightness"],
+                        "contrast": metrics["contrast"],
+                        "face_count": metrics["face_count"]
+                    }
+                }}
+            )
+            
             return {
-                "image_id": str(uuid.uuid4()),
-                "session_id": session_id,
-                "original_filename": filename,
-                "blob_url": image_url,
-                "hash_value": hashes["combined"],  # Use combined pHash + dHash
-                "quality_score": quality_score,
-                "delete_recommended": delete_recommended,
-                "metadata": {
-                    "phash": hashes["phash"],
-                    "dhash": hashes["dhash"],
-                    "sharpness": metrics["sharpness"],
-                    "brightness": metrics["brightness"],
-                    "contrast": metrics["contrast"],
-                    "face_count": metrics["face_count"]
-                }
+                "image_id": image.image_id,
+                "hash_value": hashes["combined"],
+                "quality_score": quality_score
             }
+            
         except Exception as e:
-            logger.error(f"Error processing image {image_url}: {str(e)}")
+            logger.error(f"Error processing image {image.blob_url}: {str(e)}")
             return None
     
     async def process_all_images():
-        """Process all images concurrently with progress tracking"""
+        """Process all images for the session"""
         await db_manager.connect()
         
         try:
-            # Update session status to processing
+            # **CRITICAL FIX: Get images from database, not from parameters**
+            images = await db_manager.get_session_images(session_id)
+            
+            if not images:
+                logger.warning(f"No images found for session {session_id}")
+                return
+            
+            logger.info(f"Starting processing of {len(images)} images")
+            
+            # Update session status
             await db_manager.update_session(session_id, {
                 "status": "processing",
                 "processed_images": 0
             })
             
-            # Process images with multithreading
-            logger.info(f"Starting processing of {len(image_urls)} images")
-            
-            # Create tasks for concurrent processing
-            tasks = []
-            for i, url in enumerate(image_urls):
-                filename = f"image_{i}.jpg"  # Extract actual filename if needed
-                tasks.append(process_single_image(url, filename))
-            
-            # Process images in batches to avoid overwhelming the system
+            # Process images in batches
             batch_size = int(os.getenv("MAX_CONCURRENT_PROCESSING", "4"))
-            processed_images = []
+            processed_count = 0
+            hash_values = []
             
-            for i in range(0, len(tasks), batch_size):
-                batch = tasks[i:i + batch_size]
+            for i in range(0, len(images), batch_size):
+                batch = images[i:i + batch_size]
                 
-                # Process batch concurrently
-                batch_results = await asyncio.gather(*batch, return_exceptions=True)
+                # Create tasks for batch
+                tasks = [process_single_image(img) for img in batch]
+                batch_results = await asyncio.gather(*tasks, return_exceptions=True)
                 
-                # Save successful results and update progress
+                # Process results
                 for result in batch_results:
                     if result and not isinstance(result, Exception):
-                        image_model = ImageModel(**result)
-                        await db_manager.save_image(image_model)
-                        processed_images.append(result)
+                        processed_count += 1
+                        hash_values.append(result["hash_value"])
                         
                         # Update progress
                         await db_manager.update_session(session_id, {
-                            "processed_images": len(processed_images)
+                            "processed_images": processed_count
                         })
                         
-                        logger.info(f"Processed {len(processed_images)}/{len(image_urls)} images")
+                        logger.info(f"Processed {processed_count}/{len(images)} images")
             
             # Update session status
             await db_manager.update_session(session_id, {
                 "status": "clustering",
-                "processed_images": len(processed_images)
+                "processed_images": processed_count
             })
             
-            logger.info(f"Completed processing {len(processed_images)} images")
+            logger.info(f"Completed processing {processed_count} images")
             
-            # Trigger clustering task
-            cluster_images_task.delay(session_id, [img["hash_value"] for img in processed_images])
+            # Trigger clustering
+            cluster_images_task.delay(session_id, hash_values)
             
         except Exception as e:
             logger.error(f"Error in process_all_images: {str(e)}")
@@ -139,8 +144,13 @@ def process_images_task(self, session_id: str, image_urls: List[str]):
         finally:
             await db_manager.disconnect()
     
-    # Run the async function
-    asyncio.run(process_all_images())
+    # Run async function
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    loop.run_until_complete(process_all_images())
 
 @celery_app.task(bind=True, name="tasks.image_tasks.cluster_images_task")
 def cluster_images_task(self, session_id: str, hash_values: List[str]):
@@ -226,8 +236,13 @@ def cluster_images_task(self, session_id: str, hash_values: List[str]):
         finally:
             await db_manager.disconnect()
     
-    # Run the async function
-    asyncio.run(perform_clustering())
+    # Run the async function safely in Celery context
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    loop.run_until_complete(perform_clustering())
 
 @celery_app.task(name="tasks.image_tasks.cleanup_old_sessions")
 def cleanup_old_sessions():
@@ -266,7 +281,14 @@ def cleanup_old_sessions():
         finally:
             await db_manager.disconnect()
     
-    asyncio.run(cleanup())
+    # Run the async function safely in Celery context
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    loop.run_until_complete(cleanup())
+
 
 '''
 
