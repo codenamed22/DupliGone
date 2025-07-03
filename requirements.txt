@@ -34,4 +34,4 @@ httpx==0.25.2
 
 # Development - Python 3.12 compatible
 pytest==7.4.3
-pytest-asyncio==0.21.1
+pytest-asyncio==0.21.1matplotlib==3.8.2
