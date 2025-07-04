@@ -18,6 +18,7 @@ import logging
 # Import our custom modules
 from models.database import db_manager, SessionModel, ImageModel
 from services.azure_storage import azure_storage
+from services.azure_sas import generate_sas_url
 from tasks.image_tasks import process_images_task
 
 # Set up logging
@@ -218,17 +219,23 @@ async def get_results(authorization: str = Header(...)):
         
         # Get session images
         images = await db_manager.get_session_images(session_id)
-        
+        # Generate SAS URLs for each image
+        image_id_to_sas = {img.image_id: generate_sas_url(img.blob_url) for img in images}
         # Get clusters
         clusters = await db_manager.get_session_clusters(session_id)
-        
         # Build cluster information with image details
         cluster_info = []
         for cluster in clusters:
             cluster_images = [img for img in images if img.image_id in cluster.images]
+            # Patch each image's blob_url to SAS URL
+            cluster_images_info = []
+            for img in cluster_images:
+                img_dict = img.dict()
+                img_dict["blob_url"] = image_id_to_sas.get(img.image_id, img.blob_url)
+                cluster_images_info.append(ImageInfo(**img_dict))
             cluster_info.append(ClusterInfo(
                 cluster_id=cluster.cluster_id,
-                images=[ImageInfo(**img.dict()) for img in cluster_images],
+                images=cluster_images_info,
                 best_image_id=cluster.best_image_id,
                 total_images=len(cluster_images)
             ))
