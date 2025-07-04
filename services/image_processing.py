@@ -153,34 +153,26 @@ class ImageProcessor:
     def find_optimal_eps_with_elbow(self, distances: List[float]) -> float:
         """
         Use elbow method with k-distance graph to find optimal eps for DBSCAN
-        This automatically determines the best clustering threshold
+        This version is tuned for stricter grouping (less over-clustering)
         """
         if len(distances) < 4:
-            return 0.5  # Default fallback for small datasets
-        # Calculate n from len(distances) = n * (n-1) / 2
+            return 0.25  # Stricter default for small datasets
         n_float = (1 + (1 + 8 * len(distances)) ** 0.5) / 2
         n = int(n_float)
         if n * (n - 1) // 2 != len(distances):
             raise ValueError(f"find_optimal_eps_with_elbow: Cannot reshape distances of length {len(distances)} into a symmetric matrix. Computed n={n}, but n(n-1)/2={n*(n-1)//2}")
-        # Create k-distance graph (k=4 is common for DBSCAN)
         k = min(4, n - 1)
-        # Use NearestNeighbors to find k-distances
         nn = NearestNeighbors(n_neighbors=k, metric='precomputed')
-        # Create distance matrix
         distance_matrix = np.zeros((n, n))
-        # Fill distance matrix (symmetric)
         idx = 0
         for i in range(n):
             for j in range(i + 1, n):
                 distance_matrix[i][j] = distances[idx]
                 distance_matrix[j][i] = distances[idx]
                 idx += 1
-        # Fit nearest neighbors
         nn.fit(distance_matrix)
-        # Get k-distances and sort them
         k_distances, _ = nn.kneighbors(distance_matrix)
-        k_distances = np.sort(k_distances[:, k-1])  # Get k-th nearest neighbor distances
-        # Use KneeLocator to find the elbow point
+        k_distances = np.sort(k_distances[:, k-1])
         try:
             knee_locator = KneeLocator(
                 range(len(k_distances)), 
@@ -190,15 +182,17 @@ class ImageProcessor:
             )
             if knee_locator.elbow is not None:
                 optimal_eps = k_distances[knee_locator.elbow]
-                print(f"Elbow method found optimal eps: {optimal_eps}")
+                # Make clustering stricter by scaling down eps
+                optimal_eps = max(optimal_eps * 0.7, 0.15)
+                print(f"[TUNED] Elbow method found optimal eps: {optimal_eps}")
                 return optimal_eps
             else:
-                # Fallback: use 90th percentile
-                return np.percentile(k_distances, 90)
+                # Fallback: use 80th percentile (stricter)
+                return max(np.percentile(k_distances, 80), 0.15)
         except Exception as e:
-            print(f"Elbow detection failed: {e}, using fallback method")
-            # Fallback: use median of k-distances
-            return np.median(k_distances)
+            print(f"[TUNED] Elbow detection failed: {e}, using fallback method")
+            # Fallback: use lower median of k-distances
+            return max(np.median(k_distances) * 0.7, 0.15)
         
     def cluster_similar_images(self, hash_list: List[str], use_combined: bool = True) -> List[List[int]]:
         """

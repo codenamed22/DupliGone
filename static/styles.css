@@ -418,6 +418,54 @@ body {
     font-size: var(--font-size-lg);
 }
 
+/* Improve visibility for Download and Navigation buttons */
+#download-clean.btn {
+    background: linear-gradient(135deg, var(--info-color), var(--primary-color));
+    color: var(--white);
+    border: none;
+    box-shadow: var(--shadow-md);
+}
+#download-clean.btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--primary-dark), var(--info-color));
+    color: var(--white);
+}
+
+#cluster-prev, #cluster-next {
+    background: var(--primary-color) !important;
+    color: var(--white) !important;
+    border: none !important;
+    border-radius: var(--radius-lg) !important;
+    font-size: var(--font-size-base) !important;
+    font-weight: 700 !important;
+    padding: var(--spacing-sm) var(--spacing-lg) !important;
+    margin: 0 var(--spacing-xs) !important;
+    box-shadow: var(--shadow-md) !important;
+    z-index: 10 !important;
+    opacity: 1 !important;
+}
+#cluster-prev:disabled, #cluster-next:disabled {
+    background: var(--gray-400) !important;
+    color: var(--gray-700) !important;
+    opacity: 0.7 !important;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
+}
+#cluster-prev:hover:not(:disabled), #cluster-next:hover:not(:disabled) {
+    background: var(--secondary-color) !important;
+    color: var(--white) !important;
+    box-shadow: var(--shadow-lg) !important;
+}
+
+/* Make sure .cluster-nav is visible and buttons are spaced */
+.cluster-nav {
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: center;
+    justify-content: flex-end;
+    margin-left: auto;
+    z-index: 10;
+}
+
 /* Clusters Container */
 .clusters-container {
     margin-top: var(--spacing-xl);
@@ -790,4 +838,38 @@ body {
         box-shadow: none;
         border: 1px solid var(--gray-300);
     }
+}
+
+/* High-contrast background for results section and clusters */
+#results-section.section {
+    background: var(--gray-900) !important;
+    color: var(--white) !important;
+}
+
+.clusters-container {
+    background: var(--gray-800);
+    border-radius: var(--radius-2xl);
+    padding: var(--spacing-xl);
+    box-shadow: var(--shadow-xl);
+    color: var(--white);
+}
+
+.cluster {
+    background: var(--gray-700);
+    color: var(--white);
+    border: 1px solid var(--gray-600);
+}
+
+.cluster-title, .cluster-badges, .badge, .badge-best, .badge-delete {
+    color: var(--white) !important;
+}
+
+/* Ensure text in summary-stats and results-header is visible */
+.results-header, .summary-stats, .summary-card, .summary-label, .summary-number {
+    color: var(--white) !important;
+}
+
+/* Make sure toggles and controls are visible */
+input[type="checkbox"]:not(:checked) + label, input[type="checkbox"]:checked + label {
+    color: var(--white);
 }

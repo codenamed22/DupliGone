@@ -435,7 +435,7 @@ class DupliGoneApp {
         this.updateSummaryStats(result);
         
         // Render clusters
-        this.renderClusters(result.clusters);
+        this.renderClustersStepper(result.clusters);
         
         this.showToast('Processing complete! Review your results below.', 'success');
     }
@@ -454,12 +454,11 @@ class DupliGoneApp {
     }
 
     /**
-     * Render image clusters
+     * Render image clusters as a stepper (one cluster at a time)
      */
-    renderClusters(clusters) {
+    renderClustersStepper(clusters) {
         const container = document.getElementById('clusters-container');
         container.innerHTML = '';
-
         if (clusters.length === 0) {
             container.innerHTML = `
                 <div class="no-clusters">
@@ -469,51 +468,67 @@ class DupliGoneApp {
             `;
             return;
         }
-
-        clusters.forEach((cluster, index) => {
-            const clusterElement = this.createClusterElement(cluster, index);
+        // Stepper state
+        let currentCluster = 0;
+        const renderCurrent = () => {
+            container.innerHTML = '';
+            const cluster = clusters[currentCluster];
+            const clusterElement = this.createClusterElementWithToggle(cluster, currentCluster, clusters.length);
             container.appendChild(clusterElement);
-        });
+            // Navigation
+            const prevBtn = document.getElementById('cluster-prev');
+            const nextBtn = document.getElementById('cluster-next');
+            if (prevBtn) prevBtn.onclick = () => { if (currentCluster > 0) { currentCluster--; renderCurrent(); } };
+            if (nextBtn) nextBtn.onclick = () => { if (currentCluster < clusters.length - 1) { currentCluster++; renderCurrent(); } };
+        };
+        renderCurrent();
     }
 
     /**
-     * Create cluster HTML element
+     * Create cluster HTML element with navigation and toggles
      */
-    createClusterElement(cluster, index) {
+    createClusterElementWithToggle(cluster, index, total) {
         const clusterDiv = document.createElement('div');
         clusterDiv.className = 'cluster';
         clusterDiv.innerHTML = `
             <div class="cluster-header">
-                <h3 class="cluster-title">Group ${index + 1} - ${cluster.total_images} similar images</h3>
+                <h3 class="cluster-title">Group ${index + 1} of ${total} - ${cluster.total_images} similar images</h3>
                 <div class="cluster-badges">
                     <span class="badge badge-best">1 Best</span>
                     <span class="badge badge-delete">${cluster.total_images - 1} Recommended for deletion</span>
                 </div>
+                <div class="cluster-nav">
+                    <button id="cluster-prev" ${index === 0 ? 'disabled' : ''}>Previous</button>
+                    <button id="cluster-next" ${index === total - 1 ? 'disabled' : ''}>Next</button>
+                </div>
             </div>
             <div class="cluster-images" id="cluster-${cluster.cluster_id}">
-                ${cluster.images.map(image => this.createImageElement(image, cluster.best_image_id)).join('')}
+                ${cluster.images.map(image => this.createImageElementWithToggle(image, cluster.best_image_id)).join('')}
             </div>
         `;
         return clusterDiv;
     }
 
     /**
-     * Create image HTML element
+     * Create image HTML element with a toggle (checkbox) to protect from deletion
      */
-    createImageElement(image, bestImageId) {
+    createImageElementWithToggle(image, bestImageId) {
         const isBest = image.image_id === bestImageId;
         const qualityPercent = Math.round(image.quality_score * 100);
-        
+        // Use a checkbox to allow user to protect from deletion
         return `
             <div class="image-item ${isBest ? 'best-image' : ''}" data-image-id="${image.image_id}">
-                <img src="${image.blob_url}" alt="${image.original_filename}" loading="lazy" 
-                     onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIEVycm9yPC90ZXh0Pjwvc3ZnPg=='">
+                <img src="${image.blob_url}" alt="${image.original_filename}" loading="lazy">
                 <div class="image-overlay">
                     <div class="image-info">
                         <div class="quality-score">${qualityPercent}%</div>
                         ${isBest ? '<div class="badge badge-best">Best Quality</div>' : ''}
                         ${image.delete_recommended ? '<div class="badge badge-delete">Delete?</div>' : ''}
                         <div class="image-filename">${image.original_filename}</div>
+                        <label class="toggle-protect">
+                            <input type="checkbox" class="protect-checkbox" data-image-id="${image.image_id}" ${!image.delete_recommended ? 'checked' : ''}>
+                            Keep (do not delete)
+                        </label>
                     </div>
                 </div>
             </div>
@@ -526,24 +541,25 @@ class DupliGoneApp {
     async deleteRecommended() {
         if (!this.currentResults) return;
 
-        // Get all recommended images
-        const recommendedImages = [];
+        // Get all images marked for deletion by user (unchecked boxes)
+        const imagesToDelete = [];
         this.currentResults.clusters.forEach(cluster => {
             cluster.images.forEach(image => {
-                if (image.delete_recommended) {
-                    recommendedImages.push(image.image_id);
+                const checkbox = document.querySelector(`.protect-checkbox[data-image-id='${image.image_id}']`);
+                if (checkbox && !checkbox.checked) {
+                    imagesToDelete.push(image.image_id);
                 }
             });
         });
 
-        if (recommendedImages.length === 0) {
-            this.showToast('No images recommended for deletion.', 'info');
+        if (imagesToDelete.length === 0) {
+            this.showToast('No images selected for deletion.', 'info');
             return;
         }
 
         // Confirm deletion
         const confirmed = confirm(
-            `Are you sure you want to delete ${recommendedImages.length} recommended images? This action cannot be undone.`
+            `Are you sure you want to delete ${imagesToDelete.length} selected images? This action cannot be undone.`
         );
         
         if (!confirmed) return;
@@ -558,7 +574,7 @@ class DupliGoneApp {
                     'Authorization': `Bearer ${this.token}`
                 },
                 body: JSON.stringify({
-                    image_ids: recommendedImages
+                    image_ids: imagesToDelete
                 })
             });
 
@@ -570,17 +586,13 @@ class DupliGoneApp {
             console.log('✅ Delete successful:', result);
 
             // Remove deleted images from UI
-            recommendedImages.forEach(imageId => {
+            imagesToDelete.forEach(imageId => {
                 const element = document.querySelector(`[data-image-id="${imageId}"]`);
                 if (element) {
                     element.style.animation = 'fadeOut 0.3s ease-out';
                     setTimeout(() => element.remove(), 300);
                 }
             });
-
-            // Update summary stats
-            const currentRecommended = parseInt(document.getElementById('recommended-deletions').textContent);
-            document.getElementById('recommended-deletions').textContent = Math.max(0, currentRecommended - result.deleted_count);
 
             this.hideLoadingOverlay();
             this.showToast(`Successfully deleted ${result.deleted_count} images!`, 'success');
