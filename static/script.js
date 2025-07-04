@@ -219,13 +219,18 @@ class DupliGoneApp {
             });
 
             // Upload with progress tracking
-            const response = await this.uploadWithProgress(formData);
-            
-            if (!response.ok) {
-                throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+            const xhr = await this.uploadWithProgress(formData);
+
+            if (xhr.status < 200 || xhr.status >= 300) {
+                throw new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`);
             }
 
-            const result = await response.json();
+            let result;
+            try {
+                result = JSON.parse(xhr.responseText);
+            } catch (e) {
+                throw new Error('Upload failed: Invalid JSON response');
+            }
             console.log('✅ Upload successful:', result);
             
             // Store session information

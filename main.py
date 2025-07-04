@@ -192,10 +192,7 @@ async def upload_images(files: List[UploadFile] = File(...)):
     except Exception as e:
         logger.error(f"Upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
-    finally:
-        # **CRITICAL FIX: Always disconnect from database**
-        await db_manager.disconnect()
-
+    # Removed db_manager.disconnect() from finally block to keep DB connection open for polling
 
 @app.get("/getResult", response_model=ResultResponse)
 async def get_results(authorization: str = Header(...)):

@@ -209,6 +209,8 @@ class ImageProcessor:
         """
         Cluster images based on hash similarity using DBSCAN with automatic eps detection
         """
+        print(f"[DEBUG] cluster_similar_images: hash_list length = {len(hash_list)}")
+        print(f"[DEBUG] cluster_similar_images: hash_list = {hash_list}")
         if len(hash_list) < 2:
             return [[i] for i in range(len(hash_list))]
             
@@ -239,24 +241,24 @@ class ImageProcessor:
                     # Single hash distance
                     distance = self.calculate_hash_distance(working_hashes[i], working_hashes[j])
                     distances.append(distance)
-        
+        print(f"[DEBUG] cluster_similar_images: pairwise distances length = {len(distances)}")
         # Find optimal eps using elbow method
         optimal_eps = self.find_optimal_eps_with_elbow(distances)
-        
-        print(f"Using eps={optimal_eps} for DBSCAN clustering")
-        
+        print(f"[DEBUG] cluster_similar_images: using eps = {optimal_eps}")
         # Create distance matrix for DBSCAN
         n = len(working_hashes)
         distance_matrix = np.zeros((n, n))
-        
         # Fill distance matrix
         idx = 0
         for i in range(n):
             for j in range(i + 1, n):
+                if idx >= len(distances):
+                    print(f"[DEBUG] ERROR: idx {idx} out of range for distances (len={len(distances)}), i={i}, j={j}, n={n}")
+                    raise IndexError(f"Distance index {idx} out of range for distances of length {len(distances)}")
                 distance_matrix[i][j] = distances[idx]
                 distance_matrix[j][i] = distances[idx]
                 idx += 1
-        
+        print(f"[DEBUG] cluster_similar_images: distance_matrix shape = {distance_matrix.shape}")
         # Apply DBSCAN clustering with optimal eps
         clustering = DBSCAN(
             eps=optimal_eps, 
@@ -264,7 +266,7 @@ class ImageProcessor:
             metric='precomputed'
         )
         cluster_labels = clustering.fit_predict(distance_matrix)
-        
+        print(f"[DEBUG] cluster_similar_images: cluster_labels = {cluster_labels}")
         # Group indices by cluster label
         clusters = {}
         for idx, label in enumerate(cluster_labels):
@@ -274,7 +276,7 @@ class ImageProcessor:
                 if label not in clusters:
                     clusters[label] = []
                 clusters[label].append(idx)
-        
+        print(f"[DEBUG] cluster_similar_images: clusters = {clusters}")
         # Return list of clusters (each cluster is a list of image indices)
         return list(clusters.values())
 

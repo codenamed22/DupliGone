@@ -169,67 +169,80 @@ def cluster_images_task(self, session_id: str, hash_values: List[str]):
             # Get all images for this session
             images = await db_manager.get_session_images(session_id)
             
-            if len(images) < 2:
-                logger.info("Less than 2 images, skipping clustering")
+            # Filter images to only those with a valid hash_value
+            filtered_images = [img for img in images if getattr(img, 'hash_value', None)]
+            logger.info(f"[DEBUG] Session {session_id}: {len(filtered_images)} images with valid hash_value out of {len(images)} total.")
+            if len(filtered_images) < 2:
+                logger.info("Less than 2 images with valid hashes, skipping clustering")
                 await db_manager.update_session(session_id, {"status": "completed"})
                 return
-            
-            # Create hash to image mapping
-            hash_to_image = {img.hash_value: img for img in images}
-            hash_list = list(hash_to_image.keys())
-            
+            if len(filtered_images) != len(images):
+                logger.warning(f"Skipping {len(images) - len(filtered_images)} images without valid hash_value for clustering.")
+            hash_list = [img.hash_value for img in filtered_images]
+            logger.info(f"[DEBUG] hash_list: {hash_list}")
+
             # Perform clustering with automatic eps detection
             logger.info("Performing DBSCAN clustering with elbow method")
-            clusters = image_processor.cluster_similar_images(hash_list, use_combined=True)
-            
+            try:
+                clusters = image_processor.cluster_similar_images(hash_list, use_combined=True)
+            except Exception as cluster_func_e:
+                logger.error(f"[DEBUG] Exception in cluster_similar_images: {str(cluster_func_e)}")
+                raise
+            logger.info(f"[DEBUG] Clusters returned: {clusters}")
             logger.info(f"Found {len(clusters)} clusters")
-            
+
             # Process each cluster
             cluster_count = 0
             for i, cluster_indices in enumerate(clusters):
-                if len(cluster_indices) > 1:  # Only process clusters with multiple images
-                    cluster_count += 1
-                    cluster_id = str(uuid.uuid4())
-                    cluster_images = [images[idx] for idx in cluster_indices]
-                    
-                    # Find best image in cluster (highest quality score)
-                    best_image = max(cluster_images, key=lambda x: x.quality_score)
-                    
-                    logger.info(f"Cluster {cluster_count}: {len(cluster_images)} images, best quality: {best_image.quality_score:.3f}")
-                    
-                    # Mark other images for deletion
-                    for img in cluster_images:
-                        if img.image_id != best_image.image_id:
-                            # Update image to mark for deletion
-                            await db_manager.db.images.update_one(
-                                {"image_id": img.image_id},
-                                {"$set": {"delete_recommended": True, "cluster_id": cluster_id}}
-                            )
-                        else:
-                            # Update best image with cluster ID
-                            await db_manager.db.images.update_one(
-                                {"image_id": img.image_id},
-                                {"$set": {"cluster_id": cluster_id}}
-                            )
-                    
-                    # Save cluster information
-                    cluster_model = ClusterModel(
-                        cluster_id=cluster_id,
-                        session_id=session_id,
-                        images=[img.image_id for img in cluster_images],
-                        best_image_id=best_image.image_id,
-                        created_at=datetime.utcnow()
-                    )
-                    await db_manager.save_cluster(cluster_model)
-            
+                logger.info(f"[DEBUG] Processing cluster {i}: indices {cluster_indices}")
+                try:
+                    if len(cluster_indices) > 1:  # Only process clusters with multiple images
+                        cluster_count += 1
+                        cluster_id = str(uuid.uuid4())
+                        # Defensive: skip indices out of range
+                        cluster_images = []
+                        for idx in cluster_indices:
+                            if 0 <= idx < len(filtered_images):
+                                cluster_images.append(filtered_images[idx])
+                            else:
+                                logger.error(f"[DEBUG] Cluster index {idx} out of range for filtered_images list of length {len(filtered_images)}")
+                        if not cluster_images:
+                            logger.error(f"No valid images found for cluster {i}, skipping.")
+                            continue
+                        # Find best image in cluster (highest quality score)
+                        best_image = max(cluster_images, key=lambda x: x.quality_score)
+                        logger.info(f"Cluster {cluster_count}: {len(cluster_images)} images, best quality: {best_image.quality_score:.3f}")
+                        # Mark other images for deletion
+                        for img in cluster_images:
+                            if img.image_id != best_image.image_id:
+                                # Update image to mark for deletion
+                                await db_manager.db.images.update_one(
+                                    {"image_id": img.image_id},
+                                    {"$set": {"delete_recommended": True, "cluster_id": cluster_id}}
+                                )
+                            else:
+                                # Update best image with cluster ID
+                                await db_manager.db.images.update_one(
+                                    {"image_id": img.image_id},
+                                    {"$set": {"cluster_id": cluster_id}}
+                                )
+                        # Save cluster information
+                        cluster_model = ClusterModel(
+                            cluster_id=cluster_id,
+                            session_id=session_id,
+                            images=[img.image_id for img in cluster_images],
+                            best_image_id=best_image.image_id,
+                            created_at=datetime.utcnow()
+                        )
+                        await db_manager.save_cluster(cluster_model)
+                except Exception as cluster_e:
+                    logger.error(f"Error processing cluster {i}: {str(cluster_e)}")
             # Update session status to completed
             await db_manager.update_session(session_id, {
                 "status": "completed",
                 "clusters": cluster_count
             })
-            
             logger.info(f"Clustering completed: {cluster_count} duplicate groups found")
-            
         except Exception as e:
             logger.error(f"Error in clustering: {str(e)}")
             await db_manager.update_session(session_id, {"status": "failed"})
