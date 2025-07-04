@@ -55,3 +55,31 @@
 ---
 
 For a deep technical explanation, see `TECHNICAL_REPORT.md`.
+
+
+
+'''
+.env file format:
+
+# MongoDB Configuration
+MONGODB_URL=yourMongoURLhere
+DATABASE_NAME=yourDBNameHere
+
+# Azure Storage Configuration
+AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=your_account;AccountKey=your_key;EndpointSuffix=core.windows.net
+AZURE_STORAGE_CONTAINER_NAME=dupligone-images
+
+# Redis Configuration (for Celery)
+REDIS_URL=redis://redis:6379/0
+
+# API Configuration
+HOST=0.0.0.0
+PORT=8000
+
+# Security (for production)
+SECRET_KEY=your-secret-key-here
+
+# Logging
+LOG_LEVEL=INFO
+
+'''
