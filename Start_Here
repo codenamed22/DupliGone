@@ -1,0 +1,88 @@
+# DupliGone - How To Use
+
+## Prerequisites
+- Python 3.8+
+- MongoDB instance (local or cloud)
+- Azure Blob Storage account
+- (Optional) Docker for containerized deployment
+
+## 1. Setup
+- Clone the repository.
+- Install dependencies:
+  ```bash
+  pip install -r requirements.txt
+  ```
+- Set environment variables for MongoDB and Azure credentials (see `.env.example`). Export them via the terminal.
+
+## 2. Start the Backend
+
+-Under a virtual env install all requirements, specifically matplotlib and aiottp (or errors will be thrown) and Run python main.py
+
+- Run FastAPI server:
+  ```bash
+  uvicorn main:app --reload
+  ```
+- Start Celery worker in another terminal (run 2 for 2 threads):
+  ```bash
+  celery -A tasks.image_tasks worker --loglevel=info
+  ```
+
+## 3. Using the Web UI
+- Open your browser to `http://localhost:8000`.
+- Upload images via drag-and-drop or file picker.
+- Wait for processing (progress is shown).
+- Review each cluster (group of similar images) one at a time.
+- Select which images to keep or delete in each group.
+- Confirm deletion, or use dry run to preview results.
+
+## 4. Cleanup
+- To remove old sessions and free up storage, run:
+  ```bash
+  python scripts/cleanup.py
+  ```
+- You can set the retention period with the `CLEANUP_DAYS` environment variable.
+
+## 5. Tuning & Customization
+- To make clustering stricter or looser, edit `services/image_processing.py` (see `find_optimal_eps_with_elbow`).
+- To adjust quality ranking, modify the weights in the quality metric calculation.
+
+## 6. Troubleshooting
+- Check logs in the terminal for errors.
+- Ensure MongoDB and Azure credentials are correct.
+- For UI issues, refresh the browser and check the browser console.
+
+---
+
+For a deep technical explanation, see `TECHNICAL_REPORT.md`.
+
+
+
+'''
+.env file format:
+
+# MongoDB Configuration
+MONGODB_URL=yourMongoURLhere
+DATABASE_NAME=yourDBNameHere
+
+# Azure Storage Configuration
+AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=your_account;AccountKey=your_key;EndpointSuffix=core.windows.net
+AZURE_STORAGE_CONTAINER_NAME=dupligone-images
+
+# Redis Configuration (for Celery)
+REDIS_URL=redis://redis:6379/0
+
+# API Configuration
+HOST=0.0.0.0
+PORT=8000
+
+# Security (for production)
+SECRET_KEY=your-secret-key-here
+
+# Logging
+LOG_LEVEL=INFO
+
+'''
+
+
+
+For better UI and improved added features (toggle, keep image, image preview) switch to featureBranch branch and run the code, currently under development, minor issue with azure.
