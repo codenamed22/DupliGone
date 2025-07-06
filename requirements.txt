@@ -1,0 +1,45 @@
+# Core Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# Database
+pymongo[srv]==4.6.0
+motor==3.3.2
+
+# Azure Storage
+azure-storage-blob==12.19.0
+azure-identity==1.15.0
+
+# Image Processing & AI (PYTHON 3.12 COMPATIBLE VERSIONS)
+opencv-python==4.9.0.80
+Pillow==10.1.0
+numpy==1.26.4
+imagehash==4.3.1
+scikit-learn==1.4.0
+matplotlib==3.8.2
+kneed==0.8.5
+scipy==1.12.0
+
+# Queue System
+celery==5.3.4
+redis==5.0.1
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# Utilities
+python-dotenv==1.0.0
+aiofiles==23.2.1
+httpx==0.25.2
+aiohttp==3.9.1
+
+# Development
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Production additions:
+prometheus-client==0.20.0  # Monitoring
+structlog==23.2.0  # Better logging
