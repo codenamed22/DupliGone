@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DupliGone - Photo Library Cleaner</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">📸</span>
+                <h1>DupliGone</h1>
+            </div>
+            <p class="tagline">Clean your photo library intelligently</p>
+        </header>
+
+        <main class="main-content">
+            <!-- Upload Section -->
+            <section id="upload-section" class="section active">
+                <div class="upload-container">
+                    <div class="upload-area" id="upload-area">
+                        <div class="upload-icon">🖼️</div>
+                        <h2>Upload Your Photos</h2>
+                        <p>Select multiple photos or drag and drop them here</p>
+                        <p class="upload-hint">Supports: JPG, PNG, GIF, WebP</p>
+                        
+                        <input type="file" id="file-input" multiple accept="image/*" hidden>
+                        <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+                            Choose Photos
+                        </button>
+                        
+                        <div class="upload-stats" id="upload-stats" style="display: none;">
+                            <span id="file-count">0</span> files selected
+                        </div>
+                    </div>
+                    
+                    <div class="upload-progress" id="upload-progress" style="display: none;">
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-fill"></div>
+                            </div>
+                            <span class="progress-text" id="progress-text">0%</span>
+                        </div>
+                        <p id="upload-status">Uploading...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Processing Section -->
+            <section id="processing-section" class="section">
+                <div class="processing-container">
+                    <div class="processing-animation">
+                        <div class="spinner"></div>
+                        <h2>Processing Your Photos</h2>
+                        <p id="processing-status">Analyzing images and finding duplicates...</p>
+                    </div>
+                    
+                    <div class="processing-stats">
+                        <div class="stat-card">
+                            <span class="stat-number" id="processed-count">0</span>
+                            <span class="stat-label">Processed</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number" id="total-count">0</span>
+                            <span class="stat-label">Total</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number" id="clusters-count">0</span>
+                            <span class="stat-label">Duplicate Groups</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="results-section" class="section">
+                <div class="results-header">
+                    <h2>Review Results</h2>
+                    <div class="summary-stats">
+                        <div class="summary-card success">
+                            <div class="summary-icon">✅</div>
+                            <div class="summary-content">
+                                <span class="summary-number" id="clusters-found">0</span>
+                                <span class="summary-label">Duplicate Groups Found</span>
+                            </div>
+                        </div>
+                        <div class="summary-card warning">
+                            <div class="summary-icon">🗑️</div>
+                            <div class="summary-content">
+                                <span class="summary-number" id="recommended-deletions">0</span>
+                                <span class="summary-label">Recommended for Deletion</span>
+                            </div>
+                        </div>
+                        <div class="summary-card info">
+                            <div class="summary-icon">💾</div>
+                            <div class="summary-content">
+                                <span class="summary-number" id="space-saved">0</span>
+                                <span class="summary-label">MB Space to Save</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-danger" id="delete-recommended">
+                        <span class="btn-icon">🗑️</span>
+                        Delete All Recommended
+                    </button>
+                    <button class="btn btn-secondary" id="download-clean">
+                        <span class="btn-icon">📥</span>
+                        Download Clean Library
+                    </button>
+                    <button class="btn btn-outline" id="start-over">
+                        <span class="btn-icon">🔄</span>
+                        Start Over
+                    </button>
+                </div>
+
+                <div class="clusters-container" id="clusters-container">
+                    <!-- Clusters will be populated here by JavaScript -->
+                </div>
+            </section>
+
+            <!-- Error Section -->
+            <section id="error-section" class="section">
+                <div class="error-container">
+                    <div class="error-icon">❌</div>
+                    <h2>Something went wrong</h2>
+                    <p id="error-message">An error occurred while processing your images.</p>
+                    <button class="btn btn-primary" id="retry-button">Try Again</button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2025 DupliGone. Made with ❤️ for cleaner photo libraries.</p>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p>Processing...</p>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
+
+<!--
+
+Flow: 
+
+Upload → User selects/drops images
+Processing → Shows progress with token-based polling
+Results → Displays clusters with delete recommendations
+Actions → User can delete flagged images or download clean library
+-->
