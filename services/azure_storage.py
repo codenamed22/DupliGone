@@ -18,11 +18,15 @@ def extract_blob_name(blob_url: str, container_name: str) -> str:
     Extracts the blob name (including session_id folder) from the full Azure blob URL.
     """
     parsed = urlparse(blob_url)
+    # Remove the container prefix and leading slash
     prefix = f"/{container_name}/"
     if parsed.path.startswith(prefix):
-        return parsed.path[len(prefix):]
+        blob_name = parsed.path[len(prefix):]
     else:
-        return parsed.path.lstrip("/")
+        blob_name = parsed.path.lstrip("/")
+    
+    print(f"Extracted blob name: {blob_name} from URL: {blob_url}")
+    return blob_name
 
 class AzureStorageService:
     def __init__(self):
